@@ -54,6 +54,9 @@ async def async_setup_entry(
     entities: list[LockEntity] = [
         BticinoV1Lock(coordinator, entry, module_id, lock_names[module_id]) for module_id in lock_modules
     ]
+    entity_log: list[tuple[str, str, str]] = [
+        ("BticinoV1Lock", module_id, lock_names[module_id]) for module_id in lock_modules
+    ]
 
     # A light module wired to a gate is still a momentary opener, so it belongs
     # on the lock platform -- registering a LockEntity through the light
@@ -65,12 +68,13 @@ async def async_setup_entry(
             BticinoV1LightAsLock(coordinator, entry, module_id, f"{light_names[module_id]} Lock")
             for module_id in light_modules
         )
+        entity_log.extend(
+            ("BticinoV1LightAsLock", module_id, f"{light_names[module_id]} Lock") for module_id in light_modules
+        )
 
-    _LOGGER.debug(
-        "Adding %d lock entities: %s",
-        len(entities),
-        [(type(entity).__name__, entity.name) for entity in entities],
-    )
+    # Log from the names computed above: reading entity.name before the entity
+    # is added to hass can raise, which would fail the whole platform setup.
+    _LOGGER.debug("Adding %d lock entities: %s", len(entities), entity_log)
     async_add_entities(entities)
 
 

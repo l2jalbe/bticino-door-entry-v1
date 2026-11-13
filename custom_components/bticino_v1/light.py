@@ -32,12 +32,15 @@ async def async_setup_entry(
         async_add_entities([])
         return
 
-    entities = [
-        BticinoV1Light(coordinator, entry, module_id)
+    light_module_ids = [
+        module_id
         for module_id, module in coordinator.data.get("modules", {}).items()
         if module.get("device") == DEVICE_TYPE_LIGHT
     ]
-    _LOGGER.debug("Adding %d light entities: %s", len(entities), [entity.name for entity in entities])
+    entities = [BticinoV1Light(coordinator, entry, module_id) for module_id in light_module_ids]
+    # Reading entity.name before the entity is added to hass can raise, which
+    # would fail the whole platform setup, so log the module ids instead.
+    _LOGGER.debug("Adding %d light entities for modules %s", len(entities), light_module_ids)
     async_add_entities(entities)
 
 
