@@ -2,9 +2,14 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from homeassistant.components.lock import LockEntityFeature
+from homeassistant.components.lock import LockEntity, LockEntityFeature
 
-from custom_components.bticino_v1.lock import BticinoV1Lock, async_setup_entry
+from custom_components.bticino_v1.lock import (
+    BticinoV1LightAsLock,
+    BticinoV1Lock,
+    async_setup_entry,
+    build_display_names,
+)
 from custom_components.bticino_v1.const import DOMAIN, DEVICE_TYPE_LOCK, LOCK_RELOCK_DELAY
 
 
@@ -152,3 +157,68 @@ async def test_lock_handles_api_error_without_crash(mock_coordinator, mock_entry
     
     # State should be reset to locked after error
     assert lock.is_locked is True
+
+
+@pytest.mark.asyncio
+async def test_async_open_sends_command(mock_coordinator, mock_entry):
+    """lock.open must work, not raise NotImplementedError."""
+    lock = BticinoV1Lock(mock_coordinator, mock_entry, "lock-id-001")
+    lock.hass = MagicMock()
+    lock.async_write_ha_state = MagicMock()
+
+    with patch("custom_components.bticino_v1.lock.async_call_later", return_value=lambda: None):
+        await lock.async_open()
+
+    mock_coordinator.async_open_lock.assert_called_once_with("lock-id-001")
+
+
+def test_open_feature_is_advertised(mock_coordinator, mock_entry):
+    """OPEN is declared, so async_open must be overridden."""
+    lock = BticinoV1Lock(mock_coordinator, mock_entry, "lock-id-001")
+    assert lock.supported_features & LockEntityFeature.OPEN
+    assert type(lock).async_open is not LockEntity.async_open
+
+
+def test_duplicate_module_names_get_a_suffix():
+    """Modules sharing a name must produce distinguishable entity names."""
+    modules = {
+        "aaaa-1111": {"name": "Serratura"},
+        "bbbb-2222": {"name": "Serratura"},
+        "cccc-3333": {"name": "Cancello"},
+    }
+    names = build_display_names(modules, "Lock")
+
+    assert names["cccc-3333"] == "Cancello"
+    assert names["aaaa-1111"] != names["bbbb-2222"]
+    assert names["aaaa-1111"].startswith("Serratura (")
+
+
+def test_light_as_lock_entity_created_by_lock_platform(mock_coordinator, mock_entry):
+    """With the option on, light modules become locks here, not lights."""
+    import asyncio
+
+    mock_entry.options = {"light_as_lock": True}
+    entities = []
+    async_add = MagicMock(side_effect=lambda e: entities.extend(e))
+    hass = MagicMock()
+    hass.data = {DOMAIN: {"test_entry_id_001": {"coordinator": mock_coordinator}}}
+
+    asyncio.get_event_loop().run_until_complete(async_setup_entry(hass, mock_entry, async_add))
+
+    light_locks = [e for e in entities if isinstance(e, BticinoV1LightAsLock)]
+    assert len(light_locks) == 1
+    assert light_locks[0]._module_id == "light-id-001"
+
+
+@pytest.mark.asyncio
+async def test_light_as_lock_open_calls_set_light(mock_coordinator, mock_entry):
+    """BticinoV1LightAsLock.async_open must pulse the light relay on."""
+    mock_coordinator.async_set_light = AsyncMock()
+    light_lock = BticinoV1LightAsLock(mock_coordinator, mock_entry, "light-id-001")
+    light_lock.hass = MagicMock()
+    light_lock.async_write_ha_state = MagicMock()
+
+    with patch("custom_components.bticino_v1.lock.async_call_later", return_value=lambda: None):
+        await light_lock.async_open()
+
+    mock_coordinator.async_set_light.assert_called_once_with("light-id-001", True)

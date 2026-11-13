@@ -11,7 +11,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .api import ApiError, LegrandApiClientV1
 from .auth import AuthError, AuthHandler
-from .const import DEVICE_TYPE_GATEWAY, DOMAIN, UPDATE_INTERVAL
+from .const import DEVICE_TYPE_GATEWAY, DOMAIN, MODULE_LOG_FIELDS, UPDATE_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -54,6 +54,15 @@ class BticinoV1Coordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         modules_dict = {m["id"]: m for m in modules_list}
 
+        _LOGGER.debug(
+            "Fetched %d modules: %s",
+            len(modules_list),
+            [
+                {key: module.get(key) for key in MODULE_LOG_FIELDS if key in module}
+                for module in modules_list
+            ],
+        )
+
         for module in modules_list:
             if module.get("device") == DEVICE_TYPE_GATEWAY:
                 self._gateway_id = module["id"]
@@ -69,10 +78,14 @@ class BticinoV1Coordinator(DataUpdateCoordinator[dict[str, Any]]):
         if not self._gateway_id:
             _LOGGER.error("Cannot open lock: gateway_id not known")
             return
-        await self._api.open_lock(self._gateway_id, module_id)
+        _LOGGER.debug("open_lock: gateway=%s module=%s", self._gateway_id, module_id)
+        result = await self._api.open_lock(self._gateway_id, module_id)
+        _LOGGER.debug("open_lock result for module %s: %s", module_id, result)
 
     async def async_set_light(self, module_id: str, on: bool) -> None:
         if not self._gateway_id:
             _LOGGER.error("Cannot set light: gateway_id not known")
             return
-        await self._api.set_light(self._gateway_id, module_id, on)
+        _LOGGER.debug("set_light: gateway=%s module=%s on=%s", self._gateway_id, module_id, on)
+        result = await self._api.set_light(self._gateway_id, module_id, on)
+        _LOGGER.debug("set_light result for module %s: %s", module_id, result)

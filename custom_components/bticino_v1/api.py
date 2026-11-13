@@ -55,42 +55,57 @@ class LegrandApiClientV1:
         for attempt in range(_MAX_RETRIES + 1):
             headers = await self._headers()
             session = self._get_session()
+            _LOGGER.debug("GET %s (attempt %d)", url, attempt + 1)
             async with session.get(url, headers=headers) as resp:
                 if resp.status == 401:
+                    _LOGGER.debug("GET %s -> 401, re-authenticating", url)
                     await self._auth.authenticate()
                     continue
                 if resp.status >= 500:
                     if attempt < _MAX_RETRIES:
+                        _LOGGER.debug("GET %s -> %s, retrying", url, resp.status)
                         await asyncio.sleep(_RETRY_DELAY * (2**attempt))
                         continue
                     body = await resp.json(content_type=None)
+                    _LOGGER.debug("GET %s -> %s %s", url, resp.status, body)
                     raise ApiError(resp.status, body)
                 if resp.status >= 400:
                     body = await resp.json(content_type=None)
+                    _LOGGER.debug("GET %s -> %s %s", url, resp.status, body)
                     raise ApiError(resp.status, body)
-                return await resp.json(content_type=None)
+                data = await resp.json(content_type=None)
+                _LOGGER.debug("GET %s -> %s", url, resp.status)
+                return data
         raise ApiError(401, "Max retries exceeded after reauth")
 
     async def _post(self, url: str, payload: dict) -> Any:
         for attempt in range(_MAX_RETRIES + 1):
             headers = await self._headers()
             session = self._get_session()
+            _LOGGER.debug("POST %s payload=%s (attempt %d)", url, payload, attempt + 1)
             async with session.post(url, headers=headers, json=payload) as resp:
                 if resp.status == 401:
+                    _LOGGER.debug("POST %s -> 401, re-authenticating", url)
                     await self._auth.authenticate()
                     continue
                 if resp.status >= 500:
                     if attempt < _MAX_RETRIES:
+                        _LOGGER.debug("POST %s -> %s, retrying", url, resp.status)
                         await asyncio.sleep(_RETRY_DELAY * (2**attempt))
                         continue
                     body = await resp.json(content_type=None)
+                    _LOGGER.debug("POST %s -> %s %s", url, resp.status, body)
                     raise ApiError(resp.status, body)
                 if resp.status >= 400:
                     body = await resp.json(content_type=None)
+                    _LOGGER.debug("POST %s -> %s %s", url, resp.status, body)
                     raise ApiError(resp.status, body)
                 if resp.status == 204:
+                    _LOGGER.debug("POST %s -> 204 (no content)", url)
                     return {}
-                return await resp.json(content_type=None)
+                data = await resp.json(content_type=None)
+                _LOGGER.debug("POST %s -> %s %s", url, resp.status, data)
+                return data
         raise ApiError(401, "Max retries exceeded after reauth")
 
     async def get_plants(self) -> list[dict]:

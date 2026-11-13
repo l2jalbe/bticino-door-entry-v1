@@ -28,6 +28,19 @@ DEVICE_TYPE_AV_TERMINAL = "audioVideoTerminal"
 MODULE_SUBTYPE_EU = "EU"
 MODULE_SUBTYPE_IU = "IU"
 
+# Module fields worth surfacing in debug logs and diagnostics, so an unmapped
+# module (a gate the integration exposes under no entity) can be spotted.
+MODULE_LOG_FIELDS = (
+    "id",
+    "name",
+    "device",
+    "deviceType",
+    "subtype",
+    "status",
+    "lock",
+    "connectionState",
+)
+
 # Coordinator
 UPDATE_INTERVAL = 5  # minutes
 
